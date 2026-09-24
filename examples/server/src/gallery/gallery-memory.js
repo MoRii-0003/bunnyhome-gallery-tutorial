@@ -10,11 +10,11 @@ export class GalleryMemory {
   async setCompanionMemory(id, { title, firstImpression, contextNote } = {}) {
     return this.store.updateMetadata(id, (current) => {
       const next = { ...current };
-      if (!current.title && title !== undefined) next.title = clean(title, 60);
-      if (!current.first_impression && firstImpression !== undefined) {
+      if (!String(current.title || '').trim() && title !== undefined) next.title = clean(title, 60);
+      if (!String(current.first_impression || '').trim() && firstImpression !== undefined) {
         next.first_impression = clean(firstImpression, 800);
       }
-      if (!current.first_context_note && contextNote !== undefined) {
+      if (!String(current.first_context_note || '').trim() && contextNote !== undefined) {
         next.first_context_note = clean(contextNote, 600);
       }
       return next;
