@@ -70,7 +70,7 @@ test('stale wx claims can be recovered', async () => {
   });
 });
 
-test('setCompanionMemory writes only companion-owned memory fields', async () => {
+test('setCompanionMemory fills companion-owned first memory fields once', async () => {
   await withFixture(async ({ store }) => {
     const id = 'd'.repeat(64);
     const original = {
@@ -87,6 +87,12 @@ test('setCompanionMemory writes only companion-owned memory fields', async () =>
     assert.equal(updated.title, '窗边');
     assert.equal(updated.first_impression, '第一眼的感觉');
     assert.equal(updated.first_context_note, '当时的对话');
+    const repeated = await memory.setCompanionMemory(id, {
+      title: '覆盖标题', firstImpression: '覆盖印象', contextNote: '覆盖上下文',
+    });
+    assert.equal(repeated.title, '窗边');
+    assert.equal(repeated.first_impression, '第一眼的感觉');
+    assert.equal(repeated.first_context_note, '当时的对话');
     assert.equal(updated.first_description, original.first_description);
     assert.equal(updated.first_seen_at, original.first_seen_at);
     assert.equal(updated.last_seen_at, original.last_seen_at);

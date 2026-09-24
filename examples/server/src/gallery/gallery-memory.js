@@ -8,12 +8,17 @@ export class GalleryMemory {
   }
 
   async setCompanionMemory(id, { title, firstImpression, contextNote } = {}) {
-    return this.store.updateMetadata(id, (current) => ({
-      ...current,
-      ...(title !== undefined ? { title: clean(title, 60) } : {}),
-      ...(firstImpression !== undefined ? { first_impression: clean(firstImpression, 800) } : {}),
-      ...(contextNote !== undefined ? { first_context_note: clean(contextNote, 600) } : {}),
-    }));
+    return this.store.updateMetadata(id, (current) => {
+      const next = { ...current };
+      if (!current.title && title !== undefined) next.title = clean(title, 60);
+      if (!current.first_impression && firstImpression !== undefined) {
+        next.first_impression = clean(firstImpression, 800);
+      }
+      if (!current.first_context_note && contextNote !== undefined) {
+        next.first_context_note = clean(contextNote, 600);
+      }
+      return next;
+    });
   }
 
   async setFirstDescription(id, description) {
