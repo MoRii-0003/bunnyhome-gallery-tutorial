@@ -1,11 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import cors from 'cors';
 import express from 'express';
-import { replyAsCompanion, describeImageNeutral } from './ai.js';
 import { requireUser } from './auth.js';
 import { loadConfig } from './config.js';
 import { GalleryStore } from './gallery-store.js';
 import { decodeImage } from './image.js';
+import { createProvider } from './providers/index.js';
+import { isGalleryProvider } from './providers/provider-contract.js';
 
 function safeError(error) {
   const publicErrors = new Set([
@@ -16,7 +17,7 @@ function safeError(error) {
   return publicErrors.has(error?.message) ? error.message : 'request_failed';
 }
 
-export function createApp({ config, supabase, store }) {
+export function createApp({ config, supabase, store, provider = createProvider(config) }) {
   const app = express();
   app.disable('x-powered-by');
   app.use(cors({ origin: config.webOrigin, methods: ['GET', 'POST', 'PATCH'], allowedHeaders: ['Content-Type', 'Authorization'] }));
@@ -45,6 +46,7 @@ export function createApp({ config, supabase, store }) {
     const galleryId = String(req.body?.gallery_image_id || '').trim();
     if (!message && !req.body?.image && !galleryId) return res.status(400).json({ error: 'message_or_image_required' });
     if (req.body?.image && galleryId) return res.status(400).json({ error: 'choose_new_or_saved_image' });
+    if (!isGalleryProvider(provider)) return res.status(503).json({ error: 'ai_provider_unavailable' });
 
     try {
       if (galleryId) {
@@ -52,7 +54,7 @@ export function createApp({ config, supabase, store }) {
         if (!item) return res.status(404).json({ error: 'gallery_item_not_found' });
         const firstChatAppearance = !item.first_sent_at;
         const image = firstChatAppearance ? await store.downloadImage(item) : null;
-        const companion = await replyAsCompanion(config, {
+        const companion = await provider.replyAsCompanion({
           message,
           image,
           memory: firstChatAppearance ? null : item,
@@ -64,12 +66,12 @@ export function createApp({ config, supabase, store }) {
       const image = req.body?.image ? decodeImage(req.body.image) : null;
       const save = req.body?.save_to_gallery === true && Boolean(image);
       const neutralPromise = save
-        ? describeImageNeutral(config, image).then(
+        ? provider.describeImageNeutral(image).then(
             (value) => ({ ok: true, value }),
             (error) => ({ ok: false, error }),
           )
         : null;
-      const companion = await replyAsCompanion(config, { message, image, requestMetadata: save });
+      const companion = await provider.replyAsCompanion({ message, image, requestMetadata: save });
 
       let gallerySaved = null;
       let galleryError = null;
