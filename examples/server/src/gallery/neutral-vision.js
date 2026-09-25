@@ -1,5 +1,4 @@
 import { GALLERY_ERRORS } from './gallery-errors.js';
-import { galleryImagePath } from './gallery-paths.js';
 
 export const NEUTRAL_VISION_PROMPT = [
   'You are a private neutral image-indexing worker, not the companion and not a participant in the conversation.',
