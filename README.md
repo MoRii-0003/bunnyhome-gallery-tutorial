@@ -4,6 +4,69 @@
 
 页面只管理视觉记忆：浏览图片、看记忆字段、改标题，以及配置中性视觉描述模型。它没有聊天输入、图片上传、登录或“带去聊天”流程。
 
+## 它由什么组成
+
+当前仓库是一套可以独立运行、也可以接入 Cyberboss 的本地 Gallery 实现：
+
+```text
+bunnyhome-gallery-tutorial/
+├── README.md
+├── LICENSE.md
+├── SECURITY.md
+├── package.json
+├── docs/
+│   ├── 01-storage.md
+│   ├── 02-first-save.md
+│   ├── 03-image-reuse.md
+│   ├── 04-gallery-ui.md
+│   ├── 05-chat-integration.md
+│   ├── 06-supabase-security.md
+│   └── 07-cyberboss-adapter.md
+└── examples/
+    ├── server/
+    │   ├── .env.example
+    │   ├── src/
+    │   │   ├── server.js
+    │   │   ├── adapters/
+    │   │   └── gallery/
+    │   │       ├── index.js
+    │   │       ├── local-gallery-store.js
+    │   │       ├── gallery-candidates.js
+    │   │       ├── gallery-settings-store.js
+    │   │       ├── image-ingest.js
+    │   │       ├── image-inspect.js
+    │   │       └── neutral-vision.js
+    │   └── test/
+    └── web/
+        ├── src/
+        │   ├── App.jsx
+        │   ├── api.js
+        │   ├── components/
+        │   └── pages/
+        └── vite.config.js
+```
+
+几个目录的职责：
+
+- `examples/server/src/gallery/`：Gallery Core。图片去重、candidate、正式保存、元数据、设置和 neutral vision 都在这里。Cyberboss 接入时加载的就是这一层。
+- `examples/server/src/server.js`：Gallery Web/API Server。提供 `/api/gallery`、设置接口、原图读取和生产静态页。
+- `examples/web/`：React/Vite 管理页面，只负责浏览与修改 Gallery 数据，不负责真实聊天。
+- `docs/`：教程和设计记录。当前实际运行路径以 README 和 `docs/07-cyberboss-adapter.md` 为准；`docs/01` 至 `docs/06` 中的 Supabase、独立聊天等内容属于早期教程阶段，不等于当前 Cyberboss Gallery 的部署方式。
+
+## 运行要求
+
+- Node.js **20 或更高版本**
+- npm
+- Gallery Server 对 `CYBERBOSS_GALLERY_ROOT` 有读写权限
+- 如果接入 Cyberboss，Cyberboss 进程还必须能读取本仓库的 `examples/server/src/gallery/`，并读写同一个 Gallery Root
+
+可以先检查：
+
+```bash
+node --version
+npm --version
+```
+
 ## 本地数据
 
 默认数据目录是仓库根目录下的 `.cyberboss-state/gallery/`，可用 `CYBERBOSS_GALLERY_ROOT` 指定其他位置：
@@ -19,11 +82,63 @@
 
 相同文件内容只会有一条记录。标题、首次印象和首次上下文由 Cyberboss 当前真实对话写入；中性视觉 worker 只写 `first_description`。Gallery 页面改名只覆盖 `title`。
 
-## 运行
+正式部署时建议把 Gallery Root 放在代码仓库之外，或者放进 Cyberboss 自己的 state 目录。这样更新、重拉或替换 Gallery 代码时不会碰真实图片和记忆数据。
+
+## 安装
+
+### 1. 拉取代码
+
+```bash
+git clone https://github.com/MoRii-0003/bunnyhome-gallery-tutorial.git
+cd bunnyhome-gallery-tutorial
+```
+
+如果已经有仓库，更新代码即可：
+
+```bash
+git pull
+```
+
+### 2. 安装依赖
+
+仓库使用 npm workspaces：
+
+```bash
+npm install
+```
+
+### 3. 准备环境变量
 
 ```bash
 cp examples/server/.env.example examples/server/.env
-npm install
+```
+
+默认示例：
+
+```dotenv
+CYBERBOSS_GALLERY_ROOT=.cyberboss-state/gallery
+CYBERBOSS_GALLERY_WEB_HOST=127.0.0.1
+CYBERBOSS_GALLERY_WEB_PORT=8787
+
+CYBERBOSS_GALLERY_VISION_BASE_URL=
+CYBERBOSS_GALLERY_VISION_API_KEY=
+CYBERBOSS_GALLERY_VISION_MODEL=
+CYBERBOSS_GALLERY_VISION_TIMEOUT_MS=30000
+```
+
+只想先打开页面时，可以先不填写视觉模型。
+
+## 怎么使用
+
+Gallery 有两种常见运行方式。
+
+### 方式 A：只运行本地 Gallery 页面
+
+适合先看 UI、浏览已有 Gallery Root 或调试 Gallery 本身。
+
+启动 API Server：
+
+```bash
 npm run dev:server
 ```
 
@@ -33,14 +148,44 @@ npm run dev:server
 npm run dev:web
 ```
 
-访问 `http://127.0.0.1:5173`。开发服务器把 `/api` 转发到 `127.0.0.1:8787`。服务端默认只监听回环地址；可用 `CYBERBOSS_GALLERY_WEB_HOST` 和 `CYBERBOSS_GALLERY_WEB_PORT` 调整。
+访问：
 
-生产静态页面使用同一个 Express 服务：
-
-```bash
-npm run build
-npm --workspace @gallery-example/server start
+```text
+http://127.0.0.1:5173
 ```
+
+开发服务器把 `/api` 转发到 `127.0.0.1:8787`。
+
+页面里可以：
+
+- 浏览已正式保存的图片；
+- 查看标题、首次印象、首次上下文和中性视觉描述；
+- 修改标题；
+- 配置 Neutral Vision 的 Base URL、API Key、Model 和 Timeout。
+
+页面本身**不能上传图片，也不会创建 Cyberboss 对话**。要让新图片进入长期图库，需要走 Cyberboss 的真实图片链路。
+
+### 方式 B：接入 Cyberboss
+
+这是当前主要运行方式。
+
+Cyberboss 负责：
+
+- Telegram、QQ、微信等真实消息入口；
+- 当前对话和 runtime；
+- 判断图片是否值得长期保存；
+- 调用 Gallery 保存工具；
+- 已保存图片再次出现时，把旧 Gallery 语义记忆放回当前 turn。
+
+Gallery Core 负责：
+
+- candidate；
+- SHA-256 去重；
+- 正式图片与元数据保存；
+- neutral vision；
+- Gallery 设置与文件存储。
+
+Gallery 不启动第二套人格，也不复制 Cyberboss 对话。
 
 ## 视觉描述模型
 
@@ -112,11 +257,15 @@ CYBERBOSS_GALLERY_WEB_HOST=127.0.0.1
 CYBERBOSS_GALLERY_WEB_PORT=8787
 ```
 
+构建并启动：
+
 ```bash
 npm install
 npm run build
 npm --workspace @gallery-example/server start
 ```
+
+生产模式下 Express 会同时提供 API 和构建后的静态页面，所以不需要再单独运行 Vite dev server。
 
 页面默认只监听本机 `127.0.0.1:8787`。它没有公网认证，不要把 Web Server 直接暴露到公网。视觉 API 的 Base URL、Key、Model 和 Timeout 在页面“设置”中填写；Key 保存在共享 root 的 `settings.json`，不需要写入 Cyberboss 配置。Cyberboss 不需要配置 `CYBERBOSS_GALLERY_VISION_*` 才能使用页面里保存的视觉设置。
 
@@ -134,6 +283,38 @@ npm --workspace @gallery-example/server start
 
 普通图片到达本身不会创建正式图库记录，也不会触发视觉模型。没有调用保存工具的新图只会作为短期 candidate；Telegram 原生 sticker 会跳过 Gallery。再次收到已保存的同一图片时，Cyberboss 使用 SHA-256 找到原记录并提供语义记忆。Gallery 的视觉描述模型只负责 `first_description`；标题和第一印象由当前 Cyberboss turn 提供。
 
+## 生产部署建议
+
+仓库不绑定某一种进程管理器。长期运行时，可以用 systemd、Docker、pm2 或其他现有守护方式运行：
+
+```bash
+npm --workspace @gallery-example/server start
+```
+
+无论用什么方式，都建议保持这些边界：
+
+- Web Server 默认只监听 `127.0.0.1`。
+- 如果需要从公网访问，先在外层加入你自己的认证和反向代理，不要直接暴露 `8787`。
+- Gallery Web 与 Cyberboss 必须指向**完全相同**的 `CYBERBOSS_GALLERY_ROOT`。
+- `CYBERBOSS_GALLERY_CORE_PATH` 指向 `examples/server/src/gallery/`，不是仓库根目录。
+- 代码目录和 Gallery Root 尽量分开；更新代码前不要删除或覆盖真实 Gallery Root。
+- `settings.json` 可能包含视觉服务 API Key，应和图片、元数据一样按私密数据处理。
+
+### 更新代码
+
+如果代码目录和 Gallery Root 已经分开，通常只需要：
+
+```bash
+git pull
+npm install
+npm run check
+npm run build
+```
+
+然后重启承载 Gallery Server 的进程。
+
+更新前建议备份 Gallery Root。最重要的数据是 `images/`、`meta/`、`claims/`、`candidates/` 和 `settings.json`，不要把“重新 clone 仓库”当成 Gallery 数据备份。
+
 ## API
 
 - `GET /api/gallery` — 返回图片墙需要的元数据，不包含磁盘路径。
@@ -146,13 +327,28 @@ Web API 与静态页面同源。服务默认监听 `127.0.0.1`，本阶段没有
 
 ## 验证
 
+改动或升级后可以跑：
+
 ```bash
 npm test
 npm run build
 npm run check
 ```
 
-当前运行路径是本地 Cyberboss Gallery：Cyberboss 在收到图片时只做 SHA 查询；新图作为短期 candidate，只有 Cyberboss 当前对话调用保存工具后才进入 `images/` 和 `meta/`。`docs/01` 至 `docs/06` 保留原始教程阶段的设计记录；其中的 Supabase 和独立聊天流程不属于当前运行路径。
+其中 `npm run check` 会执行当前仓库的测试和 Web build。
+
+当前运行路径是本地 Cyberboss Gallery：Cyberboss 在收到图片时只做 SHA 查询；新图作为短期 candidate，只有 Cyberboss 当前对话调用保存工具后才进入 `images/` 和 `meta/`。
+
+## 常见误区 / 注意事项
+
+- **Gallery 不是图片上传站。** 页面没有上传入口；正式图片来自 Cyberboss 的真实聊天链路。
+- **新图不等于已保存。** 新图片先成为 candidate，只有保存工具真正执行后才进入长期图库。
+- **重复图片不会重新看图。** 已保存图片再次出现时走 SHA 去重和旧语义记忆，不再重复把图片像素送给 runtime。
+- **Neutral Vision 不写关系语义。** 它只负责中性画面描述 `first_description`；标题、首次印象和首次上下文来自真实 Cyberboss turn。
+- **不要让 Web 与 Cyberboss 使用两个 Root。** 这是最容易出现“网页里怎么没有图”或“CB 明明保存了但页面看不到”的原因。
+- **不要把 Gallery Server 直接开到公网。** 当前 API 没有自己的登录系统。
+- **不要把代码仓库当数据目录。** 真正需要长期保存和备份的是 Gallery Root。
+- **旧教程不等于当前运行架构。** `docs/01` 至 `docs/06` 记录了早期教程阶段；当前 Cyberboss 集成以 README、实际源码和 `docs/07-cyberboss-adapter.md` 为准。
 
 ## License
 
