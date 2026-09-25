@@ -18,7 +18,7 @@ export async function makeGalleryFixture(options = {}) {
   const core = createGalleryCore({
     rootDir,
     vision: { baseUrl: 'https://vision.fixture/v1', model: 'fixture-model', timeoutMs: 5000 },
-  });
+  }, { legacyStateDir: options.legacyStateDir || directory });
   core.neutralVision.describeImage = async () => '测试用中性视觉描述。';
   const attachment = {
     absolutePath: sourcePath,
