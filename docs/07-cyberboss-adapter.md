@@ -1,8 +1,6 @@
-# Cyberboss adapter boundary
+# Cyberboss Gallery adapter
 
-Gallery keeps its own provider contract. Its standalone example defaults to the existing Anthropic provider. An embedding application can select `AI_PROVIDER=external` and inject a provider implementing `replyAsCompanion({ message, image, memory, requestMetadata })` and `describeImageNeutral(image)`. In external mode Gallery does not require Anthropic credentials or instantiate the Anthropic provider.
-
-`normalizeCyberbossImageAttachment(attachment)` accepts only image attachments with a local absolute path and an image MIME supplied in `contentType` or `mimeType`. It returns the stable Gallery input `{ absolutePath, mediaType, sourceKind }`. It does not infer MIME from an extension, read channel-specific properties, or connect to a Cyberboss HTTP endpoint. This contract alone is not an end-to-end Cyberboss integration.
+Cyberboss owns the conversation runtime. Its inbound attachment integration passes persisted image attachments to the public Gallery Core entry at `examples/server/src/gallery/index.js`. Gallery does not launch another Codex process or copy Cyberboss's personality prompt.
 
 ```text
 QQ / Telegram / WeChat
@@ -11,11 +9,13 @@ Cyberboss saves the attachment
         ↓
 prepared.attachments
         ↓
-Gallery adapter
+Gallery Integration
         ↓
-Gallery visual memory
+local Gallery image and visual memory
 ```
 
-The expected next integration point is after `CyberbossApp.prepareIncomingMessageForRuntime()` has persisted attachments and before `buildRuntimeTurn()` / `resolveVisionContext()`.
+`normalizeCyberbossImageAttachment(attachment)` accepts only an image attachment with a local absolute path and an image MIME type in `contentType` or `mimeType`. It does not infer MIME from the file extension or read channel-specific properties.
 
-Gallery does not create a second Codex process or copy Cyberboss's personality prompt. Cyberboss continues to own the real conversation runtime.
+The Gallery web page is a local visual-memory manager. It reads the same LocalGalleryStore used by the adapter; it does not implement chat, image upload, account login, or a second conversation runtime.
+
+Gallery's neutral vision settings can be changed through its local Settings page. `NeutralVision` reads the effective environment-plus-`settings.json` configuration immediately before each model request, so updates do not require restarting Cyberboss or rebuilding its Core instance.

@@ -1,40 +1,21 @@
-const apiUrl = String(import.meta.env.VITE_API_URL || 'http://localhost:8787').replace(/\/$/, '');
-
-async function request(path, accessToken, options = {}) {
-  const response = await fetch(`${apiUrl}${path}`, {
+async function request(path, options) {
+  const response = await fetch(path, {
     ...options,
     headers: {
-      Authorization: `Bearer ${accessToken}`,
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...options.headers,
+      ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...options?.headers,
     },
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  if (!response.ok) throw new Error(data.error || `请求失败 (${response.status})`);
   return data;
 }
 
 export const galleryApi = {
-  list: (token) => request('/api/gallery', token),
-  rename: (token, id, title) => request(`/api/gallery/${id}`, token, {
-    method: 'PATCH',
-    body: JSON.stringify({ title }),
-  }),
-  chat: (token, body) => request('/api/chat', token, {
-    method: 'POST',
-    body: JSON.stringify(body),
+  list: () => request('/api/gallery'),
+  rename: (id, title) => request(`/api/gallery/${id}`, { method: 'PATCH', body: JSON.stringify({ title }) }),
+  visionSettings: () => request('/api/settings/vision'),
+  saveVisionSettings: (settings) => request('/api/settings/vision', {
+    method: 'PATCH', body: JSON.stringify(settings),
   }),
 };
-
-export function fileAsImagePayload(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('image_read_failed'));
-    reader.onload = () => {
-      const dataUrl = String(reader.result || '');
-      resolve({ media_type: file.type, data: dataUrl });
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
