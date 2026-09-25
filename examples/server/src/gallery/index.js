@@ -8,11 +8,11 @@ import { GalleryCandidates } from './gallery-candidates.js';
 
 export { GalleryMemory, GallerySettingsStore, LocalGalleryStore, NeutralVision, loadGalleryConfig };
 
-export function createGalleryCore(config = loadGalleryConfig(), { getVisionConfig, legacyStateDir } = {}) {
+export function createGalleryCore(config = loadGalleryConfig(), { getVisionConfig, legacyStateDir, legacyFs, warn } = {}) {
   const store = new LocalGalleryStore({ rootDir: config.rootDir });
   const memory = new GalleryMemory(store);
   const ingest = new ImageIngest({ store });
-  const candidates = new GalleryCandidates({ rootDir: config.rootDir, legacyStateDir });
+  const candidates = new GalleryCandidates({ rootDir: config.rootDir, legacyStateDir, legacyFs, warn });
   const settings = new GallerySettingsStore({ rootDir: config.rootDir, defaults: config.vision });
   const neutralVision = new NeutralVision({
     config: config.vision, getConfig: getVisionConfig || (() => settings.getVisionConfig()),

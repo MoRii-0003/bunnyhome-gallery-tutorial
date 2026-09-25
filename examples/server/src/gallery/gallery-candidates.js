@@ -11,9 +11,11 @@ const ATTACHMENT_FIELDS = ['absolutePath', 'contentType', 'mimeType', 'kind', 's
 const cleanContext = (value) => Array.from(String(value || '').replace(/\s+/g, ' ').trim()).slice(0, 600).join('');
 
 export class GalleryCandidates {
-  constructor({ rootDir, legacyStateDir }) {
+  constructor({ rootDir, legacyStateDir, legacyFs = {}, warn = console.warn }) {
     this.directory = path.join(path.resolve(rootDir), 'candidates');
     this.legacyDirectory = legacyStateDir ? path.join(path.resolve(legacyStateDir), 'gallery-candidates') : null;
+    this.legacyFs = { readdir, readFile, copyFile, unlink, rmdir, ...legacyFs };
+    this.warn = warn;
   }
 
   async create(attachment, contextNote) {
@@ -72,11 +74,10 @@ export class GalleryCandidates {
 
   async remove(candidateId) {
     if (typeof candidateId !== 'string' || !CANDIDATE_ID_PATTERN.test(candidateId)) return;
-    const paths = [this.candidatePath(candidateId)];
-    if (this.legacyDirectory) paths.push(path.join(this.legacyDirectory, `${candidateId}.json`));
-    await Promise.all(paths.map((file) => unlink(file).catch((error) => {
+    await unlink(this.candidatePath(candidateId)).catch((error) => {
       if (error?.code !== 'ENOENT') throw error;
-    })));
+    });
+    if (this.legacyDirectory) await this.removeLegacyFile(path.join(this.legacyDirectory, `${candidateId}.json`));
   }
 
   async prepare() {
@@ -106,41 +107,61 @@ export class GalleryCandidates {
 
   async migrateLegacy() {
     if (!this.legacyDirectory || path.resolve(this.legacyDirectory) === path.resolve(this.directory)) return;
-    const entries = await readdir(this.legacyDirectory, { withFileTypes: true }).catch((error) => {
-      if (error?.code === 'ENOENT') return [];
-      throw error;
-    });
+    let entries;
+    try {
+      entries = await this.legacyFs.readdir(this.legacyDirectory, { withFileTypes: true });
+    } catch (error) {
+      if (error?.code !== 'ENOENT') this.warnMigration('scan legacy candidates', error);
+      return;
+    }
     const now = Date.now();
     for (const entry of entries) {
       if (!entry.isFile() || !/^[a-f0-9-]{36}\.json$/.test(entry.name)) continue;
       const source = path.join(this.legacyDirectory, entry.name);
       let candidate;
       try {
-        candidate = JSON.parse(await readFile(source, 'utf8'));
-      } catch {
-        await unlink(source).catch(() => {});
+        candidate = JSON.parse(await this.legacyFs.readFile(source, 'utf8'));
+      } catch (error) {
+        if (error?.code !== 'ENOENT') this.warnMigration('read legacy candidate', error);
+        await this.removeLegacyFile(source);
         continue;
       }
       if (!candidate?.createdAt || now - candidate.createdAt > CANDIDATE_TTL_MS) {
-        await unlink(source).catch(() => {});
+        await this.removeLegacyFile(source);
         continue;
       }
       const destination = path.join(this.directory, entry.name);
       try {
-        await copyFile(source, destination, constants.COPYFILE_EXCL);
-        await unlink(source).catch(() => {});
+        await this.legacyFs.copyFile(source, destination, constants.COPYFILE_EXCL);
+        await this.removeLegacyFile(source);
       } catch (error) {
         if (error?.code === 'EEXIST') {
-          const existing = await readFile(destination, 'utf8').then(JSON.parse).catch(() => null);
-          if (existing?.createdAt) await unlink(source).catch(() => {});
+          const existing = await this.legacyFs.readFile(destination, 'utf8').then(JSON.parse).catch(() => null);
+          if (existing?.createdAt) await this.removeLegacyFile(source);
           continue;
         }
-        throw error;
+        this.warnMigration('copy legacy candidate', error);
       }
     }
-    await rmdir(this.legacyDirectory).catch((error) => {
-      if (error?.code !== 'ENOENT' && error?.code !== 'ENOTEMPTY' && error?.code !== 'EEXIST') throw error;
-    });
+    try {
+      await this.legacyFs.rmdir(this.legacyDirectory);
+    } catch (error) {
+      if (!['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(error?.code)) {
+        this.warnMigration('remove empty legacy candidate directory', error);
+      }
+    }
+  }
+
+  async removeLegacyFile(file) {
+    try {
+      await this.legacyFs.unlink(file);
+    } catch (error) {
+      if (error?.code !== 'ENOENT') this.warnMigration('remove legacy candidate', error);
+    }
+  }
+
+  warnMigration(operation, error) {
+    try { this.warn?.(`[gallery] could not ${operation}${error?.code ? ` (${error.code})` : ''}`); } catch { /* Migration must stay best-effort. */ }
   }
 
   candidatePath(candidateId) {

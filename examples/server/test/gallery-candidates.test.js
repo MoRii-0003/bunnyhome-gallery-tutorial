@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { createGalleryCore } from '../src/gallery/index.js';
 import { makeGalleryFixture } from '../test-support/gallery-fixture.js';
 
-async function withFixture(callback) {
-  const fixture = await makeGalleryFixture();
+async function withFixture(callback, options = {}) {
+  const fixture = await makeGalleryFixture(options);
   try { await callback(fixture); } finally { await fixture.cleanup(); }
 }
 
@@ -105,6 +105,80 @@ test('expired legacy candidates are removed instead of migrated', async () => {
     await assert.rejects(() => readFile(path.join(legacyDirectory, `${candidateId}.json`)), { code: 'ENOENT' });
     await assert.rejects(() => readFile(path.join(rootDir, 'candidates', `${candidateId}.json`)), { code: 'ENOENT' });
     await assert.rejects(() => readdir(legacyDirectory), { code: 'ENOENT' });
+  });
+});
+
+test('legacy directory scan failures do not block creating and saving a new candidate', async () => {
+  const warnings = [];
+  await withFixture(async ({ core, attachment, store }) => {
+    const { created, candidateId } = await core.createCandidate(attachment, '新候选上下文');
+    assert.equal(created, true);
+
+    const saved = await core.saveCandidate(candidateId, { title: '新候选', firstImpression: '仍可保存。' });
+    assert.equal(saved.saved, true);
+    assert.equal((await store.list()).length, 1);
+  }, {
+    legacyFs: { readdir: async () => { throw Object.assign(new Error('scan denied'), { code: 'EACCES' }); } },
+    warn: (message) => warnings.push(message),
+  });
+  assert.ok(warnings.some((message) => message.includes('scan legacy candidates')));
+});
+
+test('legacy candidate copy failures do not block creating and saving a new candidate', async () => {
+  const warnings = [];
+  await withFixture(async ({ core, attachment, directory, store }) => {
+    const legacyDirectory = path.join(directory, 'gallery-candidates');
+    const legacyId = '33333333-3333-4333-8333-333333333333';
+    await mkdir(legacyDirectory, { recursive: true });
+    await writeFile(path.join(legacyDirectory, `${legacyId}.json`), JSON.stringify({
+      attachment, contextNote: '仍留在旧目录', createdAt: Date.now(),
+    }));
+
+    const { created, candidateId } = await core.createCandidate(attachment, '新候选上下文');
+    assert.equal(created, true);
+    const saved = await core.saveCandidate(candidateId, { title: '新候选', firstImpression: '仍可保存。' });
+
+    assert.equal(saved.saved, true);
+    assert.equal((await store.list()).length, 1);
+    assert.equal(JSON.parse(await readFile(path.join(legacyDirectory, `${legacyId}.json`), 'utf8')).contextNote, '仍留在旧目录');
+  }, {
+    legacyFs: { copyFile: async () => { throw Object.assign(new Error('copy denied'), { code: 'EACCES' }); } },
+    warn: (message) => warnings.push(message),
+  });
+  assert.ok(warnings.some((message) => message.includes('copy legacy candidate')));
+});
+
+test('legacy source removal and empty-directory cleanup failures do not block candidate save', async () => {
+  const warnings = [];
+  const legacyId = '44444444-4444-4444-8444-444444444444';
+  await withFixture(async ({ core, attachment, directory, rootDir, store }) => {
+    const legacyDirectory = path.join(directory, 'gallery-candidates');
+    await mkdir(legacyDirectory, { recursive: true });
+    await writeFile(path.join(legacyDirectory, `${legacyId}.json`), JSON.stringify({
+      attachment, contextNote: '迁移保留的上下文', createdAt: Date.now(),
+    }));
+
+    const { created, candidateId } = await core.createCandidate(attachment, '新候选上下文');
+    assert.equal(created, true);
+    const saved = await core.saveCandidate(candidateId, { title: '新候选', firstImpression: '仍可保存。' });
+    const migratedSaved = await core.saveCandidate(legacyId, { title: '旧候选', firstImpression: '迁移删除失败也可保存。' });
+
+    assert.equal(saved.saved, true);
+    assert.equal(migratedSaved.saved, true);
+    assert.equal((await store.list()).length, 1);
+    await assert.rejects(() => readFile(path.join(rootDir, 'candidates', `${legacyId}.json`)), { code: 'ENOENT' });
+    assert.ok(JSON.parse(await readFile(path.join(legacyDirectory, `${legacyId}.json`), 'utf8')));
+    assert.ok(warnings.some((message) => message.includes('remove legacy candidate')));
+    assert.ok(warnings.some((message) => message.includes('remove empty legacy candidate directory')));
+  }, {
+    legacyFs: {
+      unlink: async (file) => {
+        if (file.endsWith(`${legacyId}.json`)) throw Object.assign(new Error('remove denied'), { code: 'EACCES' });
+        return unlink(file);
+      },
+      rmdir: async () => { throw Object.assign(new Error('directory remove denied'), { code: 'EACCES' }); },
+    },
+    warn: (message) => warnings.push(message),
   });
 });
 
