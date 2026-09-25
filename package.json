@@ -12,8 +12,7 @@
     "dev:web": "npm --workspace @gallery-example/web run dev",
     "test": "npm --workspace @gallery-example/server test",
     "build": "npm --workspace @gallery-example/web run build",
-    "check": "npm test && npm run build",
-    "cleanup:dry-run": "npm --workspace @gallery-example/server run cleanup:dry-run"
+    "check": "npm test && npm run build"
   },
   "engines": {
     "node": ">=20"

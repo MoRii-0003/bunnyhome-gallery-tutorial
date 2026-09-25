@@ -13,8 +13,6 @@ async function withServer(callback, defaults = {}) {
   const core = {
     store: fixture.store,
     memory: fixture.memory,
-    ingest: fixture.ingest,
-    neutralVision: { async describeAndStore() {} },
   };
   const server = createApp({ core, settingsStore, staticDir: null }).listen(0, '127.0.0.1');
   try {
@@ -35,8 +33,9 @@ test('web server defaults to loopback and supports explicit host/port', () => {
 
 test('gallery list returns only safe metadata and image URL', async () => {
   await withServer(async ({ fixture, request }) => {
-    const item = (await fixture.ingest.ingestCyberbossAttachment(fixture.attachment)).item;
-    await fixture.memory.setCompanionMemory(item.id, { title: '窗边', firstImpression: '光线很柔和', contextNote: '午后' });
+    const item = (await fixture.saveAttachment(fixture.attachment, {
+      title: '窗边', firstImpression: '光线很柔和', contextNote: '午后',
+    })).item;
     const response = await request('/api/gallery');
     assert.equal(response.status, 200);
     const [listed] = await response.json();
@@ -50,7 +49,7 @@ test('gallery list returns only safe metadata and image URL', async () => {
 
 test('image endpoint validates ids, serves stored bytes privately, and returns 404 when missing', async () => {
   await withServer(async ({ fixture, request }) => {
-    const item = (await fixture.ingest.ingestCyberbossAttachment(fixture.attachment)).item;
+    const item = (await fixture.saveAttachment(fixture.attachment)).item;
     const response = await request(`/api/gallery/${item.id}/image`);
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('content-type'), 'image/png');
@@ -63,8 +62,9 @@ test('image endpoint validates ids, serves stored bytes privately, and returns 4
 
 test('rename changes title only and keeps first memory fields', async () => {
   await withServer(async ({ fixture, request }) => {
-    const item = (await fixture.ingest.ingestCyberbossAttachment(fixture.attachment)).item;
-    await fixture.memory.setCompanionMemory(item.id, { title: '旧标题', firstImpression: '第一印象', contextNote: '当时的消息' });
+    const item = (await fixture.saveAttachment(fixture.attachment, {
+      title: '旧标题', firstImpression: '第一印象', contextNote: '当时的消息',
+    })).item;
     const response = await request(`/api/gallery/${item.id}`, {
       method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '新标题' }),
     });
@@ -73,13 +73,25 @@ test('rename changes title only and keeps first memory fields', async () => {
     assert.equal(renamed.title, '新标题');
     assert.equal(renamed.first_impression, '第一印象');
     assert.equal(renamed.first_context_note, '当时的消息');
-    assert.equal(renamed.first_description, '');
+    assert.equal(renamed.first_description, '测试用中性视觉描述。');
     const forbidden = await request(`/api/gallery/${item.id}`, {
       method: 'PATCH', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ title: '不能改记忆', first_impression: '修改内容' }),
     });
     assert.equal(forbidden.status, 400);
     assert.equal((await fixture.store.get(item.id)).first_impression, '第一印象');
+  });
+});
+
+test('delete removes the Gallery record and stored image', async () => {
+  await withServer(async ({ fixture, request }) => {
+    const item = (await fixture.saveAttachment()).item;
+    const response = await request(`/api/gallery/${item.id}`, { method: 'DELETE' });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { deleted: true, imageCleanupFailed: false });
+    assert.equal(await fixture.store.get(item.id), null);
+    await assert.rejects(() => readFile(fixture.store.paths(item.id, item.media_type).image), { code: 'ENOENT' });
+    assert.equal((await request(`/api/gallery/${item.id}/image`)).status, 404);
   });
 });
 

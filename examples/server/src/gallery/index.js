@@ -5,7 +5,7 @@ import { NeutralVision } from './neutral-vision.js';
 import { loadGalleryConfig } from './gallery-config.js';
 import { GallerySettingsStore } from './gallery-settings-store.js';
 
-export { ImageIngest, GalleryMemory, GallerySettingsStore, LocalGalleryStore, NeutralVision, loadGalleryConfig };
+export { GalleryMemory, GallerySettingsStore, LocalGalleryStore, NeutralVision, loadGalleryConfig };
 
 export function createGalleryCore(config = loadGalleryConfig(), { getVisionConfig } = {}) {
   const store = new LocalGalleryStore({ rootDir: config.rootDir });
@@ -13,12 +13,11 @@ export function createGalleryCore(config = loadGalleryConfig(), { getVisionConfi
   const ingest = new ImageIngest({ store });
   const settings = new GallerySettingsStore({ rootDir: config.rootDir, defaults: config.vision });
   const neutralVision = new NeutralVision({
-    store, memory, config: config.vision, getConfig: getVisionConfig || (() => settings.getVisionConfig()),
+    config: config.vision, getConfig: getVisionConfig || (() => settings.getVisionConfig()),
   });
   return {
     store,
     memory,
-    ingest,
     neutralVision,
     lookupExistingCyberbossAttachment: (attachment) => ingest.lookupExistingCyberbossAttachment(attachment),
     saveCyberbossAttachment: (attachment, firstMemory) => ingest.saveCyberbossAttachment(

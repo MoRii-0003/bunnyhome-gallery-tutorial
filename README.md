@@ -13,6 +13,7 @@
 ├── images/<sha256>.<ext>
 ├── meta/<sha256>.json
 ├── claims/<sha256>.json
+├── candidates/<uuid>.json
 └── settings.json
 ```
 
@@ -74,7 +75,7 @@ npm run build
 npm run check
 ```
 
-`docs/01` 至 `docs/06` 保留原始教程阶段的设计记录；其中的 Supabase 和聊天流程不属于当前 Cyberboss Gallery 运行路径。
+当前运行路径是本地 Cyberboss Gallery：Cyberboss 在收到图片时只做 SHA 查询；新图作为短期 candidate，只有观星主动保存后才进入 `images/` 和 `meta/`。`docs/01` 至 `docs/06` 保留原始教程阶段的设计记录；其中的 Supabase 和独立聊天流程不属于当前运行路径。
 
 ## License
 

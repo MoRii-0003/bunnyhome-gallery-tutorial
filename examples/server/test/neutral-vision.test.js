@@ -12,58 +12,52 @@ async function withFixture(callback) {
   try { await callback(fixture); } finally { await fixture.cleanup(); }
 }
 
-test('neutral vision stores only the first_description and preserves its first value', async () => {
-  await withFixture(async ({ ingest, attachment, store, memory }) => {
-    const item = (await ingest.ingestCyberbossAttachment(attachment)).item;
-    let body;
+test('neutral vision describes the image for the explicit save flow', async () => {
+  await withFixture(async ({ attachment, store }) => {
     const vision = new NeutralVision({
-      store,
-      memory,
       config: { baseUrl: 'https://vision.example/v1/', model: 'small-vision', apiKey: 'test', timeoutMs: 5000 },
       fetchImpl: async (_url, options) => {
-        body = JSON.parse(options.body);
+        const body = JSON.parse(options.body);
+        assert.equal(body.model, 'small-vision');
+        assert.equal(body.messages[0].content[0].text, NEUTRAL_VISION_PROMPT);
         return new Response(JSON.stringify({ choices: [{ message: { content: '一只白色杯子位于画面中央，桌面是浅棕色。' } }] }), { status: 200 });
       },
     });
-    const before = await store.get(item.id);
-    assert.equal(await vision.describeAndStore(item.id), '一只白色杯子位于画面中央，桌面是浅棕色。');
-    const after = await store.get(item.id);
-    assert.equal(after.title, before.title);
-    assert.equal(after.first_impression, before.first_impression);
-    assert.equal(after.first_context_note, before.first_context_note);
-    assert.equal(after.first_description, '一只白色杯子位于画面中央，桌面是浅棕色。');
-    assert.equal(body.model, 'small-vision');
-    assert.equal(body.messages[0].content[0].text, NEUTRAL_VISION_PROMPT);
-    assert.equal(await vision.describeAndStore(item.id), after.first_description);
+    const description = await vision.describeImage({ bytes: Buffer.from('image bytes'), mediaType: 'image/png' });
+    assert.equal(description, '一只白色杯子位于画面中央，桌面是浅棕色。');
+    assert.deepEqual(await store.list(), []);
   });
 });
 
-test('missing vision configuration skips description and never blocks ingest', async () => {
-  await withFixture(async ({ ingest, attachment, store, memory }) => {
-    const result = await ingest.ingestCyberbossAttachment(attachment);
-    const vision = new NeutralVision({ store, memory, config: {} });
-    assert.deepEqual(await vision.describeAndStore(result.item.id), { skipped: true, reason: GALLERY_ERRORS.visionNotConfigured });
-    assert.equal((await store.get(result.item.id)).id, result.item.id);
+test('missing vision configuration prevents explicit save without leaving a partial item', async () => {
+  await withFixture(async ({ attachment, store }) => {
+    const core = createGalleryCore({ rootDir: store.rootDir, vision: {} });
+    await assert.rejects(() => core.saveCyberbossAttachment(attachment, {
+      title: '要保存的图片', firstImpression: '第一眼觉得很重要。', contextNote: '请记住这张',
+    }), new RegExp(GALLERY_ERRORS.visionNotConfigured));
+    assert.deepEqual(await core.store.list(), []);
   });
 });
 
-test('neutral vision reads current settings before each new image request', async () => {
-  await withFixture(async ({ ingest, attachment, sourcePath, store, memory }) => {
+test('neutral vision reads current settings before each explicit save', async () => {
+  await withFixture(async ({ attachment, sourcePath, store }) => {
     const rootDir = store.rootDir;
     const visionConfig = { baseUrl: 'https://vision.example/v1', apiKey: '', model: 'first-model', timeoutMs: 5000 };
-    const core = createGalleryCore({ rootDir, vision: visionConfig });
-    const first = (await core.ingest.ingestCyberbossAttachment(attachment)).item;
     const settings = new GallerySettingsStore({ rootDir, defaults: visionConfig });
-    await writeFile(sourcePath, pngBytes('second distinct image'));
-    const second = (await core.ingest.ingestCyberbossAttachment(attachment)).item;
+    const core = createGalleryCore({ rootDir, vision: visionConfig }, { getVisionConfig: () => settings.getVisionConfig() });
     const models = [];
     core.neutralVision.fetchImpl = async (_url, options) => {
       models.push(JSON.parse(options.body).model);
       return new Response(JSON.stringify({ choices: [{ message: { content: '直接可见的一组图像事实描述。' } }] }), { status: 200 });
     };
-    await core.neutralVision.describeAndStore(first.id);
+    await core.saveCyberbossAttachment(attachment, {
+      title: '第一张', firstImpression: '第一眼', contextNote: '第一次',
+    });
     await settings.saveVisionSettings({ baseUrl: 'https://vision.example/v1', model: 'next-model', timeoutMs: 5000, apiKey: '' });
-    await core.neutralVision.describeAndStore(second.id);
+    await writeFile(sourcePath, pngBytes('second distinct image'));
+    await core.saveCyberbossAttachment(attachment, {
+      title: '第二张', firstImpression: '第二眼', contextNote: '第二次',
+    });
     assert.deepEqual(models, ['first-model', 'next-model']);
   });
 });

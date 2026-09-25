@@ -1,8 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { LocalGalleryStore } from '../src/gallery/local-gallery-store.js';
-import { GalleryMemory } from '../src/gallery/gallery-memory.js';
+import { createGalleryCore } from '../src/gallery/index.js';
 
 export function pngBytes(label = 'fixture') {
   return Buffer.concat([
@@ -16,32 +15,11 @@ export async function makeGalleryFixture(options = {}) {
   const rootDir = path.join(directory, 'gallery');
   const sourcePath = path.join(directory, 'image.jpg');
   await writeFile(sourcePath, options.bytes || pngBytes());
-  const store = new LocalGalleryStore({ rootDir, ...options.storeOptions });
-  const memory = new GalleryMemory(store);
-  let ingestInstance;
-  const ingest = {
-    async ingestCyberbossAttachment(...args) {
-      if (!ingestInstance) {
-        const { ImageIngest } = await import('../src/gallery/image-ingest.js');
-        ingestInstance = new ImageIngest({ store, ...options.ingestOptions });
-      }
-      return ingestInstance.ingestCyberbossAttachment(...args);
-    },
-    async lookupExistingCyberbossAttachment(...args) {
-      if (!ingestInstance) {
-        const { ImageIngest } = await import('../src/gallery/image-ingest.js');
-        ingestInstance = new ImageIngest({ store, ...options.ingestOptions });
-      }
-      return ingestInstance.lookupExistingCyberbossAttachment(...args);
-    },
-    async saveCyberbossAttachment(...args) {
-      if (!ingestInstance) {
-        const { ImageIngest } = await import('../src/gallery/image-ingest.js');
-        ingestInstance = new ImageIngest({ store, ...options.ingestOptions });
-      }
-      return ingestInstance.saveCyberbossAttachment(...args);
-    },
-  };
+  const core = createGalleryCore({
+    rootDir,
+    vision: { baseUrl: 'https://vision.fixture/v1', model: 'fixture-model', timeoutMs: 5000 },
+  });
+  core.neutralVision.describeImage = async () => '测试用中性视觉描述。';
   const attachment = {
     absolutePath: sourcePath,
     contentType: 'image/jpeg',
@@ -50,7 +28,13 @@ export async function makeGalleryFixture(options = {}) {
     isImage: true,
   };
   return {
-    directory, rootDir, sourcePath, store, memory, ingest, attachment,
+    directory, rootDir, sourcePath, store: core.store, memory: core.memory, core, attachment,
+    async saveAttachment(image = attachment, fields = {}) {
+      return core.saveCyberbossAttachment(image, {
+        title: '测试图片', firstImpression: '测试第一印象。', contextNote: '测试上下文。',
+        ...fields,
+      });
+    },
     async cleanup() { await rm(directory, { recursive: true, force: true }); },
   };
 }

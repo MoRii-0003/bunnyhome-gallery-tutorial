@@ -55,7 +55,7 @@ export function createBaseGalleryMemory({ id, mediaType, sourceKind, extension, 
   };
 }
 
-export class ImageIngest {
+class ImageIngest {
   constructor({ store, maxImageBytes = MAX_GALLERY_IMAGE_BYTES }) {
     this.store = store;
     this.maxImageBytes = maxImageBytes;
@@ -66,44 +66,6 @@ export class ImageIngest {
     if (inspected.skipped) return { found: false, skipped: true, reason: inspected.reason, id: null, item: null };
     const item = await this.store.get(inspected.id);
     return { found: Boolean(item), skipped: false, id: inspected.id, item: item || null };
-  }
-
-  async ingestCyberbossAttachment(attachment) {
-    const inspected = await inspectCyberbossAttachment(attachment, this.maxImageBytes);
-    if (inspected.skipped) return { created: false, ...inspected, item: null };
-    const { normalized, buffer, image, id } = inspected;
-    const token = await this.store.acquireClaim(id);
-    let persisted = false;
-    try {
-      const existing = await this.store.get(id);
-      if (existing) {
-        const item = await this.store.writeMetadata(id, {
-          ...existing,
-          last_seen_at: new Date().toISOString(),
-          seen_count: Number(existing.seen_count || 0) + 1,
-          updated_at: new Date().toISOString(),
-        });
-        return { created: false, skipped: false, item };
-      }
-
-      const stored = await this.store.persistImage(normalized.absolutePath, id, image.mediaType, buffer);
-      persisted = true;
-      const item = createBaseGalleryMemory({
-        id,
-        mediaType: image.mediaType,
-        sourceKind: normalized.sourceKind,
-        extension: image.extension,
-      });
-      await this.store.writeMetadata(id, item);
-      return { created: true, skipped: false, item, storageMode: stored.mode };
-    } catch (error) {
-      if (persisted && !(await this.store.get(id).catch(() => null))) {
-        await this.store.removeImage(id, image.mediaType).catch(() => {});
-      }
-      throw error;
-    } finally {
-      await this.store.releaseClaim(id, token);
-    }
   }
 
   async saveCyberbossAttachment(attachment, { title, firstImpression, contextNote } = {}, describeImage) {
@@ -166,3 +128,5 @@ export class ImageIngest {
     }
   }
 }
+
+export { ImageIngest };

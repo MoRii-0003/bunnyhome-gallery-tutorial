@@ -70,37 +70,6 @@ test('stale wx claims can be recovered', async () => {
   });
 });
 
-test('setCompanionMemory fills companion-owned first memory fields once', async () => {
-  await withFixture(async ({ store }) => {
-    const id = 'd'.repeat(64);
-    const original = {
-      id, content_hash: id, storage_path: `images/${id}.png`, media_type: 'image/png', source_kind: 'photo',
-      title: '', first_impression: '', first_description: '原有客观描述', first_context_note: '',
-      first_seen_at: '2026-09-01T00:00:00.000Z', last_seen_at: '2026-09-02T00:00:00.000Z', seen_count: 4,
-      created_at: '2026-09-01T00:00:00.000Z', updated_at: '2026-09-02T00:00:00.000Z',
-    };
-    await store.writeMetadata(id, original);
-    const memory = new GalleryMemory(store);
-    const updated = await memory.setCompanionMemory(id, {
-      title: '窗边', firstImpression: '第一眼的感觉', contextNote: '当时的对话',
-    });
-    assert.equal(updated.title, '窗边');
-    assert.equal(updated.first_impression, '第一眼的感觉');
-    assert.equal(updated.first_context_note, '当时的对话');
-    const repeated = await memory.setCompanionMemory(id, {
-      title: '覆盖标题', firstImpression: '覆盖印象', contextNote: '覆盖上下文',
-    });
-    assert.equal(repeated.title, '窗边');
-    assert.equal(repeated.first_impression, '第一眼的感觉');
-    assert.equal(repeated.first_context_note, '当时的对话');
-    assert.equal(updated.first_description, original.first_description);
-    assert.equal(updated.first_seen_at, original.first_seen_at);
-    assert.equal(updated.last_seen_at, original.last_seen_at);
-    assert.equal(updated.seen_count, original.seen_count);
-    assert.equal(updated.source_kind, original.source_kind);
-  });
-});
-
 test('store.list returns valid metadata only and sorts newest first', async () => {
   await withFixture(async ({ store }) => {
     const firstId = '1'.repeat(64);

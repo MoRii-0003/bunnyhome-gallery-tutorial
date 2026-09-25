@@ -1,4 +1,4 @@
-import { galleryError, GALLERY_ERRORS } from './gallery-errors.js';
+import { GALLERY_ERRORS } from './gallery-errors.js';
 import { galleryImagePath } from './gallery-paths.js';
 
 export const NEUTRAL_VISION_PROMPT = [
@@ -21,22 +21,9 @@ function responseText(data) {
 }
 
 export class NeutralVision {
-  constructor({ store, memory, config, getConfig, fetchImpl = fetch }) {
-    this.store = store;
-    this.memory = memory;
+  constructor({ config, getConfig, fetchImpl = fetch }) {
     this.getConfig = getConfig || (async () => config || {});
     this.fetchImpl = fetchImpl;
-  }
-
-  async describeAndStore(id) {
-    const item = await this.store.get(id);
-    if (!item) throw galleryError(GALLERY_ERRORS.itemNotFound);
-    if (item.first_description) return item.first_description;
-    const bytes = await this.store.readImage(id, item.media_type);
-    const description = await this.describeImage({ bytes, mediaType: item.media_type });
-    if (description?.skipped) return description;
-    const updated = await this.memory.setFirstDescription(id, description);
-    return updated.first_description;
   }
 
   async describeImage({ bytes, mediaType }) {
