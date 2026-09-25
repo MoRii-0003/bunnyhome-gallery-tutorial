@@ -3,8 +3,8 @@ import { galleryImagePath } from './gallery-paths.js';
 
 export const NEUTRAL_VISION_PROMPT = [
   'You are a private neutral image-indexing worker, not the companion and not a participant in the conversation.',
-  'Return exactly one Chinese paragraph containing only directly visible facts.',
-  'Cover the main subjects, composition, colors, lighting, spatial relationships, and clearly readable text when present.',
+  'Write a concise Chinese description using only directly visible facts, with a hard limit of 200 Chinese characters; use as many sentences as needed.',
+  'Prioritize the main subjects and the most useful details about composition, colors, lighting, spatial relationships, and clearly readable text; omit unnecessary detail.',
   'Do not infer identity, psychology, emotion, intention, relationship, backstory, personality, or meaning.',
   'Do not address anyone. Do not add a label, markdown, JSON, tags, or commentary.',
 ].join(' ');
