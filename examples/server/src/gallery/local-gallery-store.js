@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { open, link, copyFile, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { open, link, copyFile, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import path from 'node:path';
 import { galleryError, GALLERY_ERRORS } from './gallery-errors.js';
@@ -36,6 +36,23 @@ export class LocalGalleryStore {
       if (error?.code === 'ENOENT') return null;
       throw error;
     }
+  }
+
+  async list() {
+    const { meta } = this.paths('0'.repeat(64));
+    let names;
+    try { names = await readdir(meta); }
+    catch (error) { if (error?.code === 'ENOENT') return []; throw error; }
+    const items = await Promise.all(names
+      .filter((name) => /^[a-f0-9]{64}\.json$/.test(name))
+      .map(async (name) => {
+        try {
+          const item = JSON.parse(await readFile(path.join(meta, name), 'utf8'));
+          return item?.id === name.slice(0, 64) ? item : null;
+        } catch { return null; }
+      }));
+    return items.filter(Boolean).sort((a, b) =>
+      Date.parse(b.created_at || b.last_seen_at || 0) - Date.parse(a.created_at || a.last_seen_at || 0));
   }
 
   async acquireClaim(id) {

@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import { writeFile } from 'node:fs/promises';
 import test from 'node:test';
 import { loadGalleryConfig } from '../src/gallery/gallery-config.js';
 import { GALLERY_ERRORS } from '../src/gallery/gallery-errors.js';
 import { NeutralVision, NEUTRAL_VISION_PROMPT } from '../src/gallery/neutral-vision.js';
-import { makeGalleryFixture } from '../test-support/gallery-fixture.js';
+import { createGalleryCore, GallerySettingsStore } from '../src/gallery/index.js';
+import { makeGalleryFixture, pngBytes } from '../test-support/gallery-fixture.js';
 
 async function withFixture(callback) {
   const fixture = await makeGalleryFixture();
@@ -42,6 +44,27 @@ test('missing vision configuration skips description and never blocks ingest', a
     const vision = new NeutralVision({ store, memory, config: {} });
     assert.deepEqual(await vision.describeAndStore(result.item.id), { skipped: true, reason: GALLERY_ERRORS.visionNotConfigured });
     assert.equal((await store.get(result.item.id)).id, result.item.id);
+  });
+});
+
+test('neutral vision reads current settings before each new image request', async () => {
+  await withFixture(async ({ ingest, attachment, sourcePath, store, memory }) => {
+    const rootDir = store.rootDir;
+    const visionConfig = { baseUrl: 'https://vision.example/v1', apiKey: '', model: 'first-model', timeoutMs: 5000 };
+    const core = createGalleryCore({ rootDir, vision: visionConfig });
+    const first = (await core.ingest.ingestCyberbossAttachment(attachment)).item;
+    const settings = new GallerySettingsStore({ rootDir, defaults: visionConfig });
+    await writeFile(sourcePath, pngBytes('second distinct image'));
+    const second = (await core.ingest.ingestCyberbossAttachment(attachment)).item;
+    const models = [];
+    core.neutralVision.fetchImpl = async (_url, options) => {
+      models.push(JSON.parse(options.body).model);
+      return new Response(JSON.stringify({ choices: [{ message: { content: '直接可见的一组图像事实描述。' } }] }), { status: 200 });
+    };
+    await core.neutralVision.describeAndStore(first.id);
+    await settings.saveVisionSettings({ baseUrl: 'https://vision.example/v1', model: 'next-model', timeoutMs: 5000, apiKey: '' });
+    await core.neutralVision.describeAndStore(second.id);
+    assert.deepEqual(models, ['first-model', 'next-model']);
   });
 });
 

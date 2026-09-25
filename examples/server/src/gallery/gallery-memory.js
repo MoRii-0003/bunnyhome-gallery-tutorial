@@ -29,4 +29,10 @@ export class GalleryMemory {
       return { ...current, first_description: cleanDescription };
     });
   }
+
+  async renameTitle(id, title) {
+    const nextTitle = clean(title, 60);
+    if (!nextTitle) throw galleryError(GALLERY_ERRORS.titleRequired);
+    return this.store.updateMetadata(id, (current) => ({ ...current, title: nextTitle }));
+  }
 }

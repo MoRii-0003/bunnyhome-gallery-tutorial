@@ -21,10 +21,10 @@ function responseText(data) {
 }
 
 export class NeutralVision {
-  constructor({ store, memory, config, fetchImpl = fetch }) {
+  constructor({ store, memory, config, getConfig, fetchImpl = fetch }) {
     this.store = store;
     this.memory = memory;
-    this.config = config;
+    this.getConfig = getConfig || (async () => config || {});
     this.fetchImpl = fetchImpl;
   }
 
@@ -32,22 +32,23 @@ export class NeutralVision {
     const item = await this.store.get(id);
     if (!item) throw galleryError(GALLERY_ERRORS.itemNotFound);
     if (item.first_description) return item.first_description;
-    if (!configured(this.config)) return { skipped: true, reason: GALLERY_ERRORS.visionNotConfigured };
+    const config = await this.getConfig();
+    if (!configured(config)) return { skipped: true, reason: GALLERY_ERRORS.visionNotConfigured };
 
     const bytes = await this.store.readImage(id, item.media_type);
     const controller = new AbortController();
-    const timeoutMs = Number(this.config.timeoutMs) > 0 ? Number(this.config.timeoutMs) : 30_000;
+    const timeoutMs = Number(config.timeoutMs) > 0 ? Number(config.timeoutMs) : 30_000;
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const baseUrl = this.config.baseUrl.replace(/\/+$/, '');
+      const baseUrl = config.baseUrl.replace(/\/+$/, '');
       const response = await this.fetchImpl(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          ...(this.config.apiKey ? { authorization: `Bearer ${this.config.apiKey}` } : {}),
+          ...(config.apiKey ? { authorization: `Bearer ${config.apiKey}` } : {}),
         },
         body: JSON.stringify({
-          model: this.config.model,
+          model: config.model,
           messages: [{
             role: 'user',
             content: [

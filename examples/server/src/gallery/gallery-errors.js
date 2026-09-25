@@ -10,6 +10,7 @@ export const GALLERY_ERRORS = Object.freeze({
   claimTimeout: 'gallery_claim_timeout',
   imageStorageConflict: 'gallery_image_storage_conflict',
   descriptionRequired: 'gallery_description_required',
+  titleRequired: 'title_required',
   visionNotConfigured: 'vision_not_configured',
 });
 
