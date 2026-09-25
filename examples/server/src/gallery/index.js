@@ -20,6 +20,7 @@ export function createGalleryCore(config = loadGalleryConfig(), { getVisionConfi
     memory,
     ingest,
     neutralVision,
+    lookupExistingCyberbossAttachment: (attachment) => ingest.lookupExistingCyberbossAttachment(attachment),
     saveCyberbossAttachment: (attachment, firstMemory) => ingest.saveCyberbossAttachment(
       attachment,
       firstMemory,

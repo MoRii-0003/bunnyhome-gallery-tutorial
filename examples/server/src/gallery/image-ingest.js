@@ -61,6 +61,13 @@ export class ImageIngest {
     this.maxImageBytes = maxImageBytes;
   }
 
+  async lookupExistingCyberbossAttachment(attachment) {
+    const inspected = await inspectCyberbossAttachment(attachment, this.maxImageBytes);
+    if (inspected.skipped) return { found: false, skipped: true, reason: inspected.reason, id: null, item: null };
+    const item = await this.store.get(inspected.id);
+    return { found: Boolean(item), skipped: false, id: inspected.id, item: item || null };
+  }
+
   async ingestCyberbossAttachment(attachment) {
     const inspected = await inspectCyberbossAttachment(attachment, this.maxImageBytes);
     if (inspected.skipped) return { created: false, ...inspected, item: null };

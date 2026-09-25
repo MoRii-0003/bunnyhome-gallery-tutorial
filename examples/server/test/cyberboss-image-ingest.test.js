@@ -123,6 +123,30 @@ test('repeat seen leaves first companion memory and description untouched', asyn
   });
 });
 
+test('read-only lookup finds an existing image without changing metadata or creating records', async () => {
+  await withFixture(async ({ ingest, attachment, store, rootDir }) => {
+    const saved = (await ingest.ingestCyberbossAttachment(attachment)).item;
+    const original = await store.get(saved.id);
+    const result = await ingest.lookupExistingCyberbossAttachment(attachment);
+    assert.equal(result.found, true);
+    assert.equal(result.id, saved.id);
+    assert.deepEqual(result.item, original);
+    assert.deepEqual(await readdir(path.join(rootDir, 'meta')), [`${saved.id}.json`]);
+    assert.equal((await store.get(saved.id)).seen_count, 1);
+  });
+});
+
+test('read-only lookup of a new image returns no item and does not create Gallery files', async () => {
+  await withFixture(async ({ ingest, attachment, rootDir }) => {
+    const result = await ingest.lookupExistingCyberbossAttachment(attachment);
+    assert.deepEqual(result, { found: false, skipped: false, id: result.id, item: null });
+    assert.match(result.id, /^[a-f0-9]{64}$/);
+    assert.deepEqual(await readdir(path.join(rootDir, 'meta')).catch(() => []), []);
+    assert.deepEqual(await readdir(path.join(rootDir, 'images')).catch(() => []), []);
+    assert.deepEqual(await readdir(path.join(rootDir, 'claims')).catch(() => []), []);
+  });
+});
+
 test('explicit save writes companion memory and neutral description before creating the item', async () => {
   await withFixture(async ({ ingest, attachment, rootDir }) => {
     let visionCalls = 0;
