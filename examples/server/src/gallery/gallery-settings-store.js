@@ -1,6 +1,20 @@
 import crypto from 'node:crypto';
+import { execFile } from 'node:child_process';
 import { chmod, mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
+
+async function setPrivatePermissions(filePath) {
+  await chmod(filePath, 0o600);
+  if (process.platform !== 'win32') return;
+  const account = process.env.USERNAME;
+  if (!account) throw new Error('gallery_settings_permissions_failed');
+  const domain = process.env.USERDOMAIN || process.env.COMPUTERNAME;
+  const identity = domain ? `${domain}\\${account}` : account;
+  await execFileAsync('icacls', [filePath, '/inheritance:r', '/grant:r', `${identity}:(F)`], { windowsHide: true });
+}
 
 export class GallerySettingsStore {
   constructor({ rootDir, defaults = {} }) {
@@ -66,8 +80,9 @@ export class GallerySettingsStore {
       await handle.chmod(0o600);
       await handle.close();
       handle = null;
+      await setPrivatePermissions(temporary);
       await rename(temporary, this.filePath);
-      await chmod(this.filePath, 0o600);
+      await setPrivatePermissions(this.filePath);
     } catch {
       throw new Error('gallery_settings_write_failed');
     } finally {
