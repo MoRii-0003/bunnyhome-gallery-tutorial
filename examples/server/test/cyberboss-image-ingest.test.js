@@ -122,3 +122,59 @@ test('repeat seen leaves first companion memory and description untouched', asyn
     assert.equal(second.item.seen_count, 2);
   });
 });
+
+test('explicit save writes companion memory and neutral description before creating the item', async () => {
+  await withFixture(async ({ ingest, attachment, rootDir }) => {
+    let visionCalls = 0;
+    const result = await ingest.saveCyberbossAttachment(attachment, {
+      title: '草地上的小人',
+      firstImpression: '第一眼觉得它很安静。',
+      contextNote: '这张对我很重要',
+    }, async ({ bytes, mediaType }) => {
+      visionCalls += 1;
+      assert.ok(bytes.length > 0);
+      assert.equal(mediaType, 'image/png');
+      return '绿色草地上有一个白色卡通人物，天空为蓝色。';
+    });
+
+    assert.equal(result.created, true);
+    assert.equal(visionCalls, 1);
+    assert.equal(result.item.title, '草地上的小人');
+    assert.equal(result.item.first_impression, '第一眼觉得它很安静。');
+    assert.equal(result.item.first_context_note, '这张对我很重要');
+    assert.equal(result.item.first_description, '绿色草地上有一个白色卡通人物，天空为蓝色。');
+    assert.equal((await readdir(path.join(rootDir, 'meta'))).length, 1);
+  });
+});
+
+test('neutral vision failure does not leave a new image or metadata record', async () => {
+  await withFixture(async ({ ingest, attachment, rootDir }) => {
+    await assert.rejects(() => ingest.saveCyberbossAttachment(attachment, {
+      title: '要保存的图', firstImpression: '想把它留下。', contextNote: '重要图片',
+    }, async () => { throw new Error('vision offline'); }), /vision offline/);
+    assert.deepEqual(await readdir(path.join(rootDir, 'meta')).catch(() => []), []);
+    assert.deepEqual(await readdir(path.join(rootDir, 'images')).catch(() => []), []);
+  });
+});
+
+test('explicitly saving the same SHA reuses its record without repeating neutral vision', async () => {
+  await withFixture(async ({ ingest, attachment }) => {
+    let visionCalls = 0;
+    const describe = async () => { visionCalls += 1; return '画面中有一个白色主体，背景为绿色。'; };
+    const first = await ingest.saveCyberbossAttachment(attachment, {
+      title: '初始标题', firstImpression: '第一眼印象。', contextNote: '第一次上下文',
+    }, describe);
+    const second = await ingest.saveCyberbossAttachment(attachment, {
+      title: '不覆盖标题', firstImpression: '不覆盖印象。', contextNote: '不覆盖上下文',
+    }, describe);
+
+    assert.equal(first.created, true);
+    assert.equal(second.created, false);
+    assert.equal(second.item.id, first.item.id);
+    assert.equal(second.item.seen_count, 2);
+    assert.equal(second.item.title, '初始标题');
+    assert.equal(second.item.first_impression, '第一眼印象。');
+    assert.equal(second.item.first_context_note, '第一次上下文');
+    assert.equal(visionCalls, 1);
+  });
+});

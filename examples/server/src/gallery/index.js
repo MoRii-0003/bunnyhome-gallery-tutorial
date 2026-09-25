@@ -15,5 +15,15 @@ export function createGalleryCore(config = loadGalleryConfig(), { getVisionConfi
   const neutralVision = new NeutralVision({
     store, memory, config: config.vision, getConfig: getVisionConfig || (() => settings.getVisionConfig()),
   });
-  return { store, memory, ingest, neutralVision };
+  return {
+    store,
+    memory,
+    ingest,
+    neutralVision,
+    saveCyberbossAttachment: (attachment, firstMemory) => ingest.saveCyberbossAttachment(
+      attachment,
+      firstMemory,
+      (image) => neutralVision.describeImage(image),
+    ),
+  };
 }

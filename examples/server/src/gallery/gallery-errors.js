@@ -11,6 +11,7 @@ export const GALLERY_ERRORS = Object.freeze({
   imageStorageConflict: 'gallery_image_storage_conflict',
   descriptionRequired: 'gallery_description_required',
   titleRequired: 'title_required',
+  firstImpressionRequired: 'first_impression_required',
   visionNotConfigured: 'vision_not_configured',
 });
 

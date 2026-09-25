@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { writeFile } from 'node:fs/promises';
+import { readdir, writeFile } from 'node:fs/promises';
 import test from 'node:test';
 import { loadGalleryConfig } from '../src/gallery/gallery-config.js';
 import { GALLERY_ERRORS } from '../src/gallery/gallery-errors.js';
@@ -65,6 +65,51 @@ test('neutral vision reads current settings before each new image request', asyn
     await settings.saveVisionSettings({ baseUrl: 'https://vision.example/v1', model: 'next-model', timeoutMs: 5000, apiKey: '' });
     await core.neutralVision.describeAndStore(second.id);
     assert.deepEqual(models, ['first-model', 'next-model']);
+  });
+});
+
+test('explicit Core save calls NeutralVision before committing complete Gallery metadata', async () => {
+  await withFixture(async ({ attachment, store }) => {
+    const core = createGalleryCore({
+      rootDir: store.rootDir,
+      vision: { baseUrl: 'https://vision.example/v1', model: 'dsv4.1flash', timeoutMs: 5000 },
+    });
+    let request;
+    core.neutralVision.fetchImpl = async (url, options) => {
+      request = { url, body: JSON.parse(options.body) };
+      return new Response(JSON.stringify({ choices: [{ message: { content: '蓝色天空上方有白云，绿色草地上有一个白色卡通形象。' } }] }), { status: 200 });
+    };
+
+    const result = await core.saveCyberbossAttachment(attachment, {
+      title: '草地上的形象',
+      firstImpression: '看见时觉得很安静。',
+      contextNote: '帮我记住这张图',
+    });
+
+    assert.equal(result.created, true);
+    assert.equal(request.url, 'https://vision.example/v1/chat/completions');
+    assert.equal(request.body.model, 'dsv4.1flash');
+    assert.equal(result.item.title, '草地上的形象');
+    assert.equal(result.item.first_impression, '看见时觉得很安静。');
+    assert.equal(result.item.first_context_note, '帮我记住这张图');
+    assert.equal(result.item.first_description, '蓝色天空上方有白云，绿色草地上有一个白色卡通形象。');
+    assert.equal((await core.store.list()).length, 1);
+  });
+});
+
+test('vision API failure leaves no half-created Gallery item', async () => {
+  await withFixture(async ({ attachment, store }) => {
+    const core = createGalleryCore({
+      rootDir: store.rootDir,
+      vision: { baseUrl: 'https://vision.example/v1', model: 'dsv4.1flash', timeoutMs: 5000 },
+    });
+    core.neutralVision.fetchImpl = async () => new Response('{}', { status: 503 });
+
+    await assert.rejects(() => core.saveCyberbossAttachment(attachment, {
+      title: '要保存的图片', firstImpression: '第一眼觉得很特别。', contextNote: '请记住这张',
+    }), /gallery_vision_request_failed:503/);
+    assert.deepEqual(await core.store.list(), []);
+    assert.deepEqual(await readdir(core.store.paths('0'.repeat(64)).images), []);
   });
 });
 

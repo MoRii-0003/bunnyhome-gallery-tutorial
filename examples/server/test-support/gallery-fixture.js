@@ -27,6 +27,13 @@ export async function makeGalleryFixture(options = {}) {
       }
       return ingestInstance.ingestCyberbossAttachment(...args);
     },
+    async saveCyberbossAttachment(...args) {
+      if (!ingestInstance) {
+        const { ImageIngest } = await import('../src/gallery/image-ingest.js');
+        ingestInstance = new ImageIngest({ store, ...options.ingestOptions });
+      }
+      return ingestInstance.saveCyberbossAttachment(...args);
+    },
   };
   const attachment = {
     absolutePath: sourcePath,

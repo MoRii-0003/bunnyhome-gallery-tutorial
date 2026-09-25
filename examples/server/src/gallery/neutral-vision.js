@@ -32,10 +32,17 @@ export class NeutralVision {
     const item = await this.store.get(id);
     if (!item) throw galleryError(GALLERY_ERRORS.itemNotFound);
     if (item.first_description) return item.first_description;
+    const bytes = await this.store.readImage(id, item.media_type);
+    const description = await this.describeImage({ bytes, mediaType: item.media_type });
+    if (description?.skipped) return description;
+    const updated = await this.memory.setFirstDescription(id, description);
+    return updated.first_description;
+  }
+
+  async describeImage({ bytes, mediaType }) {
     const config = await this.getConfig();
     if (!configured(config)) return { skipped: true, reason: GALLERY_ERRORS.visionNotConfigured };
 
-    const bytes = await this.store.readImage(id, item.media_type);
     const controller = new AbortController();
     const timeoutMs = Number(config.timeoutMs) > 0 ? Number(config.timeoutMs) : 30_000;
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -53,7 +60,7 @@ export class NeutralVision {
             role: 'user',
             content: [
               { type: 'text', text: NEUTRAL_VISION_PROMPT },
-              { type: 'image_url', image_url: { url: `data:${item.media_type};base64,${bytes.toString('base64')}` } },
+              { type: 'image_url', image_url: { url: `data:${mediaType};base64,${bytes.toString('base64')}` } },
             ],
           }],
         }),
@@ -63,8 +70,7 @@ export class NeutralVision {
       if (!response.ok) throw new Error(`gallery_vision_request_failed:${response.status}`);
       const description = responseText(data);
       if (!description) throw new Error('gallery_vision_description_missing');
-      const updated = await this.memory.setFirstDescription(id, description);
-      return updated.first_description;
+      return description;
     } finally {
       clearTimeout(timer);
     }
