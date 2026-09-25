@@ -35,4 +35,8 @@ export class GalleryMemory {
     if (!nextTitle) throw galleryError(GALLERY_ERRORS.titleRequired);
     return this.store.updateMetadata(id, (current) => ({ ...current, title: nextTitle }));
   }
+
+  async deleteItem(id) {
+    return this.store.delete(id);
+  }
 }

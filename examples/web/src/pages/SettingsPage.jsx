@@ -38,7 +38,7 @@ export default function SettingsPage() {
       {loading ? <p className="muted">正在读取设置…</p> : <>
         <label>API Base URL<input type="url" value={settings.baseUrl} onChange={(event) => update('baseUrl', event.target.value)} placeholder="https://…/v1" /></label>
         <label>API Key<div className="key-input"><input type="password" autoComplete="new-password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={settings.apiKeyConfigured ? '已配置，留空则保持不变' : '填写 API Key'} />{settings.apiKeyConfigured && <small>已配置</small>}</div></label>
-        <label>Model<input value={settings.model} onChange={(event) => update('model', event.target.value)} placeholder="dsv4.1flash" /></label>
+        <label>Model<input value={settings.model} onChange={(event) => update('model', event.target.value)} placeholder="deepseek-flash" /></label>
         <label>Timeout (ms)<input type="number" min="1000" step="1000" value={settings.timeoutMs} onChange={(event) => update('timeoutMs', Number(event.target.value))} /></label>
         <div className="form-footer">{error && <p className="field-error">{error}</p>}{notice && <p className="success-note">{notice}</p>}<button disabled={saving}>{saving ? '保存中…' : '保存设置'}</button></div>
       </>}

@@ -30,7 +30,7 @@ function publicItem(item) {
 export function createApp({ core, settingsStore, staticDir = webDist } = {}) {
   const app = express();
   app.disable('x-powered-by');
-  app.use(express.json({ limit: '32kb' }));
+  app.use(express.json());
 
   app.get('/api/gallery', async (_req, res) => {
     try {
@@ -69,6 +69,18 @@ export function createApp({ core, settingsStore, staticDir = webDist } = {}) {
     } catch (error) {
       const status = error?.code === GALLERY_ERRORS.itemNotFound ? 404 : 400;
       res.status(status).json({ error: error?.code || GALLERY_ERRORS.titleRequired });
+    }
+  });
+
+  app.delete('/api/gallery/:id', async (req, res) => {
+    if (!ID_PATTERN.test(req.params.id)) return res.status(400).json({ error: GALLERY_ERRORS.invalidId });
+    try {
+      const result = await core.memory.deleteItem(req.params.id);
+      if (!result.deleted) return res.status(404).json({ error: GALLERY_ERRORS.itemNotFound });
+      if (result.imageCleanupFailed) console.warn('[gallery:delete] image cleanup incomplete');
+      return res.json({ deleted: true, imageCleanupFailed: result.imageCleanupFailed });
+    } catch {
+      return res.status(500).json({ error: 'gallery_delete_failed' });
     }
   });
 

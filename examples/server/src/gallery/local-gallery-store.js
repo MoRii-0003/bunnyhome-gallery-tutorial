@@ -188,6 +188,25 @@ export class LocalGalleryStore {
     });
   }
 
+  async delete(id) {
+    const token = await this.acquireClaim(id);
+    try {
+      const item = await this.get(id);
+      if (!item) return { deleted: false, imageCleanupFailed: false };
+
+      const { metadata } = this.paths(id);
+      await unlink(metadata);
+      try {
+        await this.removeImage(id, item.media_type);
+        return { deleted: true, imageCleanupFailed: false };
+      } catch {
+        return { deleted: true, imageCleanupFailed: true };
+      }
+    } finally {
+      await this.releaseClaim(id, token);
+    }
+  }
+
   async readImage(id, mediaType) {
     return readFile(galleryImagePath(this.rootDir, id, mediaType));
   }

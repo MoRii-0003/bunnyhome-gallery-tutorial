@@ -19,7 +19,7 @@ h1, h2, h3 { margin: 0; font-family: Georgia, serif; font-weight: 500; }
 .gallery-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: 18px; }
 .tile { display: block; width: 100%; overflow: hidden; padding: 0; border: 1px solid rgba(108, 84, 74, .12); border-radius: 17px; background: #fffdf9; box-shadow: 0 8px 24px rgba(75, 56, 48, .06); color: #514540; text-align: left; transition: transform .18s ease, box-shadow .18s ease; }
 .tile:hover { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(75, 56, 48, .11); }
-.tile img { display: block; width: 100%; height: clamp(170px, 22vw, 290px); object-fit: cover; background: #e9e1d8; }
+.tile img { display: block; width: 100%; height: 140px; object-fit: cover; background: #e9e1d8; }
 .tile span { display: block; overflow: hidden; padding: 12px 14px 14px; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
 .empty-state { display: grid; min-height: 340px; place-content: center; justify-items: center; padding: 30px; border: 1px dashed #d5c7bb; border-radius: 22px; color: #82736b; text-align: center; }
 .empty-mark { color: #ae8879; font-size: 38px; }
@@ -49,6 +49,9 @@ h1, h2, h3 { margin: 0; font-family: Georgia, serif; font-weight: 500; }
 .memory-section.context-note { background: #f1ede6; }
 .organizing { padding: 15px 0; color: #9b8980; font-size: 14px; }
 .viewer-meta { display: flex; flex-wrap: wrap; gap: 8px 17px; margin-top: 22px; padding-top: 15px; border-top: 1px solid #e3d9cf; color: #94847b; font-size: 12px; }
+.delete-button { margin-top: 22px; border: 1px solid #d6aaa0; border-radius: 999px; padding: 9px 15px; color: #98584e; background: transparent; }
+.delete-button:hover { background: #f4e4df; }
+.delete-button:disabled { opacity: .6; cursor: wait; }
 .settings-card { width: min(600px, 100%); padding: clamp(22px, 4vw, 34px); border: 1px solid rgba(112, 91, 86, .14); border-radius: 22px; background: rgba(255,255,255,.68); box-shadow: 0 14px 40px rgba(74,59,54,.07); }
 .settings-title { display: flex; align-items: center; gap: 15px; margin-bottom: 25px; }
 .settings-title h3 { font-size: 23px; }
@@ -71,7 +74,7 @@ h1, h2, h3 { margin: 0; font-family: Georgia, serif; font-weight: 500; }
   .topbar nav button { padding: 9px 10px; }
   .gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
   .tile { border-radius: 13px; }
-  .tile img { height: clamp(145px, 48vw, 240px); }
+  .tile img { height: clamp(72px, 24vw, 120px); }
   .tile span { padding: 10px; }
   .viewer-backdrop { align-items: end; padding: 0; }
   .viewer { grid-template-columns: 1fr; width: 100%; max-height: 94vh; overflow-y: auto; border-radius: 22px 22px 0 0; }

@@ -14,6 +14,7 @@ async function request(path, options) {
 export const galleryApi = {
   list: () => request('/api/gallery'),
   rename: (id, title) => request(`/api/gallery/${id}`, { method: 'PATCH', body: JSON.stringify({ title }) }),
+  remove: (id) => request(`/api/gallery/${id}`, { method: 'DELETE' }),
   visionSettings: () => request('/api/settings/vision'),
   saveVisionSettings: (settings) => request('/api/settings/vision', {
     method: 'PATCH', body: JSON.stringify(settings),
