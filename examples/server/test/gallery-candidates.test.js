@@ -124,6 +124,17 @@ test('legacy directory scan failures do not block creating and saving a new cand
   assert.ok(warnings.some((message) => message.includes('scan legacy candidates')));
 });
 
+test('errors in Gallery Root candidates storage still fail candidate creation', async () => {
+  await withFixture(async ({ core, attachment, rootDir }) => {
+    await mkdir(rootDir, { recursive: true });
+    await writeFile(path.join(rootDir, 'candidates'), 'not a directory');
+    await assert.rejects(() => core.createCandidate(attachment, '上下文'));
+  }, {
+    legacyFs: { readdir: async () => { throw Object.assign(new Error('legacy scan denied'), { code: 'EACCES' }); } },
+    warn() {},
+  });
+});
+
 test('legacy candidate copy failures do not block creating and saving a new candidate', async () => {
   const warnings = [];
   await withFixture(async ({ core, attachment, directory, store }) => {

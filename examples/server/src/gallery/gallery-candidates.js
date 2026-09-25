@@ -96,11 +96,17 @@ export class GalleryCandidates {
       .filter((entry) => entry.isFile() && /^[a-f0-9-]{36}\.json$/.test(entry.name))
       .map(async ({ name }) => {
         const file = path.join(directory, name);
+        let contents;
         try {
-          const candidate = JSON.parse(await readFile(file, 'utf8'));
-          if (!candidate?.createdAt || now - candidate.createdAt > CANDIDATE_TTL_MS) await unlink(file);
+          contents = await readFile(file, 'utf8');
         } catch (error) {
-          if (error?.code !== 'ENOENT') await unlink(file).catch(() => {});
+          if (error?.code !== 'ENOENT') throw error;
+          return;
+        }
+        let candidate;
+        try { candidate = JSON.parse(contents); } catch { candidate = null; }
+        if (!candidate?.createdAt || now - candidate.createdAt > CANDIDATE_TTL_MS) {
+          await unlink(file).catch((error) => { if (error?.code !== 'ENOENT') throw error; });
         }
       }));
   }
