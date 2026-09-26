@@ -43,7 +43,7 @@ export default function GalleryViewer({ item, onClose, onRename, onDelete, busy 
           <small>中性的画面记忆</small><p>{item.first_description || '尚未记录'}</p>
         </article>
         <article className="memory-section impression">
-          <small>观星当时留下的第一印象</small><p>{item.first_impression || '尚未记录'}</p>
+          <small>&lt;char&gt;当时留下的第一印象</small><p>{item.first_impression || '尚未记录'}</p>
         </article>
         <article className="memory-section context-note">
           <small>第一次出现时</small><p>{item.first_context_note || '当时没有保存文字上下文'}</p>
