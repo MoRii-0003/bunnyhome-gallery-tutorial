@@ -72,6 +72,19 @@ export function createApp({ core, settingsStore, staticDir = webDist } = {}) {
     }
   });
 
+  app.post('/api/gallery/:id/shared-view', async (req, res) => {
+    if (!ID_PATTERN.test(req.params.id)) return res.status(400).json({ error: GALLERY_ERRORS.invalidId });
+    const body = req.body;
+    if (!body || typeof body.requestId !== 'string' || !/^[a-f0-9-]{36}$/i.test(body.requestId)
+      || Object.keys(body).length !== 1) return res.status(400).json({ error: 'invalid_request_id' });
+    try {
+      return res.json(publicItem(await core.memory.recordSharedView(req.params.id, body.requestId.toLowerCase())));
+    } catch (error) {
+      return res.status(error?.code === GALLERY_ERRORS.itemNotFound ? 404 : 500)
+        .json({ error: error?.code === GALLERY_ERRORS.itemNotFound ? GALLERY_ERRORS.itemNotFound : 'gallery_share_failed' });
+    }
+  });
+
   app.delete('/api/gallery/:id', async (req, res) => {
     if (!ID_PATTERN.test(req.params.id)) return res.status(400).json({ error: GALLERY_ERRORS.invalidId });
     try {

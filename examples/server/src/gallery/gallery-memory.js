@@ -13,6 +13,19 @@ export class GalleryMemory {
     return this.store.updateMetadata(id, (current) => ({ ...current, title: nextTitle }));
   }
 
+  async recordSharedView(id, requestId) {
+    return this.store.updateMetadata(id, (current) => {
+      const priorIds = Array.isArray(current.shared_view_request_ids) ? current.shared_view_request_ids : [];
+      if (priorIds.includes(requestId)) return current;
+      return {
+        ...current,
+        seen_count: Number(current.seen_count || 0) + 1,
+        last_seen_at: new Date().toISOString(),
+        shared_view_request_ids: [...priorIds, requestId],
+      };
+    });
+  }
+
   async deleteItem(id) {
     return this.store.delete(id);
   }

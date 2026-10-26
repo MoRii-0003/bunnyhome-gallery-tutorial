@@ -83,6 +83,25 @@ test('rename changes title only and keeps first memory fields', async () => {
   });
 });
 
+test('sharing a saved image counts one view per request ID', async () => {
+  await withServer(async ({ fixture, request }) => {
+    const item = (await fixture.saveAttachment()).item;
+    const requestId = '123e4567-e89b-42d3-a456-426614174000';
+    const route = `/api/gallery/${item.id}/shared-view`;
+    const send = (id) => request(route, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ requestId: id }),
+    });
+    const repeated = await Promise.all([send(requestId), send(requestId)]);
+    assert.deepEqual(await Promise.all(repeated.map(async (response) => (await response.json()).seen_count)), [item.seen_count + 1, item.seen_count + 1]);
+    assert.equal((await (await send('123e4567-e89b-42d3-a456-426614174001')).json()).seen_count, item.seen_count + 2);
+    const listed = await (await request('/api/gallery')).json();
+    assert.equal(listed[0].seen_count, item.seen_count + 2);
+    assert.equal(listed[0].last_seen_at, (await fixture.store.get(item.id)).last_seen_at);
+    assert.equal('shared_view_request_ids' in listed[0], false);
+    assert.equal((await send('bad')).status, 400);
+  });
+});
+
 test('delete removes the Gallery record and stored image', async () => {
   await withServer(async ({ fixture, request }) => {
     const item = (await fixture.saveAttachment()).item;
